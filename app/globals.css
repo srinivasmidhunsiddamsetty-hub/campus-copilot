@@ -1129,10 +1129,19 @@ body {
 }
 .qchips {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, auto);
+  justify-content: center;
   gap: 8px;
   width: 100%;
   max-width: 660px;
+}
+/* 4 across on row 1; the 2 row-2 chips sit in columns 2 & 3 so the gap
+   between them lines up with the Dorm Maintenance ↔ Health Services gap. */
+.qchips .qchip:nth-child(5) {
+  grid-column: 2;
+}
+.qchips .qchip:nth-child(6) {
+  grid-column: 3;
 }
 
 /* Chat area */
@@ -1227,6 +1236,16 @@ body {
   .c-wrap,
   .qchips {
     max-width: 520px;
+  }
+  /* Below desktop, fall back to the responsive centered wrap. */
+  .qchips {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .qchips .qchip:nth-child(5),
+  .qchips .qchip:nth-child(6) {
+    grid-column: auto;
   }
   #chat-scroll {
     padding: 18px 0 10px;
