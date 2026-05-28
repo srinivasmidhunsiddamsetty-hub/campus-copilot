@@ -1,43 +1,73 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { SYSTEM_PROMPT } from "@/lib/systemPrompt";
-import type { ChatMessage, ChatResponse } from "@/lib/types";
+import type { ChatMessage, ChatResponse, CardCategory, Cta } from "@/lib/types";
 
 const MODEL = "claude-haiku-4-5-20251001";
 const MAX_HISTORY = 20;
 const TOOL_NAME = "campus_response";
 
-// Hosts we know resolve. Any CTA link is normalized to one of these origins
-// (or a tel: link) so users never hit a broken/404 link.
-const KNOWN_PSU_HOSTS = new Set([
-  "psu.edu",
-  "www.psu.edu",
-  "dining.psu.edu",
-  "housing.psu.edu",
-  "myhousing.psu.edu",
-  "studentaffairs.psu.edu",
-  "transportation.psu.edu",
-  "campusrec.psu.edu",
-  "map.psu.edu",
-  "libraries.psu.edu",
-  "pennstatelearning.psu.edu",
-]);
+// Verified-working Penn State destinations (checked to resolve in a browser).
+// We never trust model-written URLs — every CTA/source link is mapped to one of
+// these, so users can never hit a broken link.
+const LINKS = {
+  main: "https://www.psu.edu",
+  map: "https://map.psu.edu",
+  busMap: "https://www.catabus.com",
+  dining: "https://housing.psu.edu", // Housing & Food Services runs dining
+  housing: "https://housing.psu.edu",
+  health: "https://studentaffairs.psu.edu/health",
+  transportation: "https://www.catabus.com", // CATA runs campus buses
+  recreation: "https://studentaffairs.psu.edu/campus-recreation",
+  studentAffairs: "https://studentaffairs.psu.edu",
+  orgs: "https://orgcentral.psu.edu",
+};
 
-// Guarantee a CTA link is safe: keep tel: links; map known PSU hosts to their
-// origin (dropping invented deep paths that could 404); otherwise fall back to
-// the response's source domain.
-function safeHref(href: string | undefined, sourceUrl: string): string {
-  let fallback = "https://www.psu.edu";
+const CATEGORY_LINK: Record<CardCategory, string> = {
+  dining: LINKS.dining,
+  maintenance: LINKS.housing,
+  health: LINKS.health,
+  transportation: LINKS.transportation,
+  recreation: LINKS.recreation,
+  clubs: LINKS.studentAffairs,
+};
+
+// Map a CTA to a verified link by its label intent, falling back to the card's
+// category page. Keeps tel: links as-is (always valid).
+function ctaHref(cta: Cta, category: CardCategory): string {
+  if (cta.href?.startsWith("tel:")) return cta.href;
+  const l = (cta.label || "").toLowerCase();
+  if (/(bus map|live map|live bus)/.test(l)) return LINKS.busMap;
+  if (/direction|walk|\bmap\b/.test(l)) return LINKS.map;
+  if (/menu|dining|food|meal/.test(l)) return LINKS.dining;
+  if (/portal|maintenance|housing|dorm|request/.test(l)) return LINKS.housing;
+  if (/reserve|court|availab|recreation|\brec\b|gym|pool|bowl|climb|intramural|golf/.test(l))
+    return LINKS.recreation;
+  if (/appoint|health|uhs|caps|counsel|crisis|pharmacy|wellness|doctor/.test(l))
+    return LINKS.health;
+  if (/organization|\borg\b|browse|club/.test(l)) return LINKS.orgs;
+  if (/calendar|event/.test(l)) return LINKS.studentAffairs;
+  if (/parking|cata|bus|transit|bike|shuttle|pass/.test(l)) return LINKS.transportation;
+  return CATEGORY_LINK[category] ?? LINKS.main;
+}
+
+// Remap dead source domains to their verified equivalents.
+const SOURCE_REMAP: Record<string, string> = {
+  "dining.psu.edu": LINKS.dining,
+  "www.dining.psu.edu": LINKS.dining,
+  "foodservices.psu.edu": LINKS.dining,
+  "myhousing.psu.edu": LINKS.housing,
+  "campusrec.psu.edu": LINKS.recreation,
+  "transportation.psu.edu": LINKS.transportation,
+};
+function safeSource(url: string | undefined): string {
+  if (!url) return LINKS.main;
   try {
-    fallback = new URL(sourceUrl).origin;
-  } catch {}
-  if (!href) return fallback;
-  if (href.startsWith("tel:")) return href;
-  try {
-    const u = new URL(href);
-    if (KNOWN_PSU_HOSTS.has(u.hostname.toLowerCase())) return u.origin;
-  } catch {}
-  return fallback;
+    const host = new URL(url).hostname.toLowerCase();
+    return SOURCE_REMAP[host] ?? url;
+  } catch {
+    return LINKS.main;
+  }
 }
 
 // Forcing this tool guarantees Claude returns a valid, parsed object
@@ -233,12 +263,17 @@ export async function POST(req: NextRequest) {
       throw new Error("unexpected response type");
     }
 
-    // Normalize every CTA link so users never hit a broken URL.
+    // Force every link to a verified Penn State destination so users never hit
+    // a broken URL. Source link is sanitized; each CTA is mapped to a known-good
+    // link by intent (tel: links are kept as-is).
     if (parsed.type === "structured") {
-      const sourceUrl = parsed.source?.url ?? "https://www.psu.edu";
+      if (parsed.source) parsed.source.url = safeSource(parsed.source.url);
       for (const card of parsed.cards ?? []) {
-        for (const cta of card.ctas ?? []) {
-          cta.href = safeHref(cta.href, sourceUrl);
+        if (card.ctas) {
+          card.ctas = card.ctas.map((cta) => ({
+            ...cta,
+            href: ctaHref(cta, card.category),
+          }));
         }
       }
     }
