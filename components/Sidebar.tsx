@@ -39,7 +39,7 @@ export default function Sidebar({
 
       <div className="sb-hist scroll-sb">
         {RECENT.map((t, i) => (
-          <div className={`sb-item${i === 0 ? " active" : ""}`} key={i}>
+          <div className="sb-item" key={i}>
             {t}
           </div>
         ))}
