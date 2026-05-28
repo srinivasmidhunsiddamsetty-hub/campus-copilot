@@ -30,17 +30,36 @@ export interface Cta {
   href?: string;
 }
 
+export interface RouteStop {
+  name: string;
+  /** e.g. "Your stop · Departs 9:42 PM", "2 min", "8 min · Your destination" */
+  detail: string;
+  kind?: "start" | "mid" | "end";
+}
+
+export interface RouteInfo {
+  from: string;
+  to: string;
+  /** e.g. "Route 81" */
+  line: string;
+  /** e.g. "~8 min · Next in 3 min" */
+  eta: string;
+  stops: RouteStop[];
+}
+
 export interface InfoCard {
   category: CardCategory;
   title: string;
   /** Location / context line under the title. */
   subtitle?: string;
   badge?: BadgeLabel;
-  /** Detail rows. Use this OR steps, not both. */
+  /** Detail rows. Use one of details / steps / route per card. */
   details?: DetailRow[];
   /** Numbered procedural steps (e.g. how to submit a request). */
   steps?: Step[];
-  /** Max 2. Never duplicate the source link. */
+  /** Transit route map (transportation flow). Renders instead of details/steps. */
+  route?: RouteInfo;
+  /** Max 2 distinct actions. */
   ctas?: Cta[];
 }
 

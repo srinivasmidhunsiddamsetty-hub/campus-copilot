@@ -68,6 +68,36 @@ const RESPONSE_TOOL: Anthropic.Tool = {
                 required: ["text"],
               },
             },
+            route: {
+              type: "object",
+              description:
+                "Transit route map (transportation flow only). Use instead of details/steps.",
+              properties: {
+                from: { type: "string" },
+                to: { type: "string" },
+                line: { type: "string", description: 'e.g. "Route 81"' },
+                eta: {
+                  type: "string",
+                  description: 'e.g. "~8 min · Next in 3 min"',
+                },
+                stops: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      name: { type: "string" },
+                      detail: { type: "string" },
+                      kind: {
+                        type: "string",
+                        enum: ["start", "mid", "end"],
+                      },
+                    },
+                    required: ["name", "detail"],
+                  },
+                },
+              },
+              required: ["from", "to", "line", "eta", "stops"],
+            },
             ctas: {
               type: "array",
               maxItems: 2,

@@ -1,4 +1,4 @@
-import type { InfoCard, BadgeLabel, CtaStyle } from "@/lib/types";
+import type { InfoCard, BadgeLabel, CtaStyle, Cta } from "@/lib/types";
 import { CATEGORY_STYLE } from "@/lib/categories";
 import { CategoryIcon } from "@/components/icons";
 
@@ -12,10 +12,99 @@ function ctaClass(style: CtaStyle): string {
   return "gh";
 }
 
+function CtaButtons({ ctas }: { ctas: Cta[] }) {
+  if (ctas.length === 0) return null;
+  return (
+    <div className="ca">
+      {ctas.map((c, i) => {
+        const cls = `ab ${ctaClass(c.style)}`;
+        const isHttp = c.href?.startsWith("http");
+        return c.href ? (
+          <a
+            className={cls}
+            href={c.href}
+            key={i}
+            {...(isHttp ? { target: "_blank", rel: "noreferrer" } : {})}
+          >
+            {c.label}
+          </a>
+        ) : (
+          <button className={cls} type="button" key={i}>
+            {c.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function BusMini() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      width={13}
+      height={13}
+      style={{ verticalAlign: -2, marginRight: 3 }}
+    >
+      <rect x="2" y="3" width="20" height="16" rx="2" />
+      <path d="M2 9h20M7 19v2M17 19v2M7 13h.01M17 13h.01" />
+    </svg>
+  );
+}
+
 export default function InfoCardView({ card }: { card: InfoCard }) {
-  const style = CATEGORY_STYLE[card.category] ?? CATEGORY_STYLE.dining;
   const ctas = (card.ctas ?? []).slice(0, 2);
 
+  // ── Transit route map ──
+  if (card.route) {
+    const r = card.route;
+    return (
+      <div className="rcard">
+        <div className="rmap">
+          <div className="rline">
+            <div className="rdot s" />
+            <div className="rdash" />
+            <div className="rdot e" />
+          </div>
+          <div className="rmap-from">{r.from}</div>
+          <div className="rmap-to">{r.to}</div>
+        </div>
+        <div className="cb">
+          <div className="route-meta">
+            <span className="busb">
+              <BusMini />
+              {r.line}
+            </span>
+            <span className="route-eta">{r.eta}</span>
+          </div>
+          <div className="stopl">
+            {r.stops.map((s, i) => (
+              <div
+                className={`stopi${
+                  s.kind === "start" ? " act" : s.kind === "end" ? " dst" : ""
+                }`}
+                key={i}
+              >
+                <div>
+                  <div className="snm">{s.name}</div>
+                  <div className="ssb">{s.detail}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <CtaButtons ctas={ctas} />
+      </div>
+    );
+  }
+
+  // ── Standard info card ──
+  const style = CATEGORY_STYLE[card.category] ?? CATEGORY_STYLE.dining;
   return (
     <div className="icard">
       <div className="ch">
@@ -61,30 +150,7 @@ export default function InfoCardView({ card }: { card: InfoCard }) {
         )}
       </div>
 
-      {ctas.length > 0 && (
-        <div className="ca">
-          {ctas.map((c, i) => {
-            const cls = `ab ${ctaClass(c.style)}`;
-            const isHttp = c.href?.startsWith("http");
-            return c.href ? (
-              <a
-                className={cls}
-                href={c.href}
-                key={i}
-                {...(isHttp
-                  ? { target: "_blank", rel: "noreferrer" }
-                  : {})}
-              >
-                {c.label}
-              </a>
-            ) : (
-              <button className={cls} type="button" key={i}>
-                {c.label}
-              </button>
-            );
-          })}
-        </div>
-      )}
+      <CtaButtons ctas={ctas} />
     </div>
   );
 }
