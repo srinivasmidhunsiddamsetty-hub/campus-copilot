@@ -5,6 +5,112 @@ import type { ChatMessage, ChatResponse } from "@/lib/types";
 
 const MODEL = "claude-haiku-4-5-20251001";
 const MAX_HISTORY = 20;
+const TOOL_NAME = "campus_response";
+
+// Forcing this tool guarantees Claude returns a valid, parsed object
+// (no hand-written JSON to break on embedded quotes, etc.).
+const RESPONSE_TOOL: Anthropic.Tool = {
+  name: TOOL_NAME,
+  description:
+    "Return the Campus Copilot reply. Pick exactly one response type and fill only the fields relevant to it.",
+  input_schema: {
+    type: "object",
+    properties: {
+      type: {
+        type: "string",
+        enum: ["structured", "out_of_scope", "greeting"],
+      },
+      intro: {
+        type: "string",
+        description: "structured only: one short friendly intro sentence.",
+      },
+      message: {
+        type: "string",
+        description: "out_of_scope or greeting only: the message text.",
+      },
+      cards: {
+        type: "array",
+        maxItems: 2,
+        description: "structured only: 1–2 info cards.",
+        items: {
+          type: "object",
+          properties: {
+            category: {
+              type: "string",
+              enum: [
+                "dining",
+                "maintenance",
+                "health",
+                "transportation",
+                "recreation",
+                "clubs",
+              ],
+            },
+            title: { type: "string" },
+            subtitle: { type: "string" },
+            badge: { type: "string", enum: ["Open", "24/7", "Live"] },
+            details: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  label: { type: "string" },
+                  text: { type: "string" },
+                },
+                required: ["text"],
+              },
+            },
+            steps: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: { text: { type: "string" } },
+                required: ["text"],
+              },
+            },
+            ctas: {
+              type: "array",
+              maxItems: 2,
+              items: {
+                type: "object",
+                properties: {
+                  label: { type: "string" },
+                  style: {
+                    type: "string",
+                    enum: ["primary", "secondary", "ghost"],
+                  },
+                  href: { type: "string" },
+                },
+                required: ["label", "style"],
+              },
+            },
+          },
+          required: ["category", "title"],
+        },
+      },
+      source: {
+        type: "object",
+        description: "structured only.",
+        properties: {
+          name: { type: "string" },
+          url: { type: "string" },
+        },
+        required: ["name", "url"],
+      },
+      followups: {
+        type: "array",
+        description: "structured only: 3–4 short, answerable next steps.",
+        items: { type: "string" },
+      },
+      chips: {
+        type: "array",
+        description: "greeting only: the six category labels.",
+        items: { type: "string" },
+      },
+    },
+    required: ["type"],
+  },
+};
 
 export async function POST(req: NextRequest) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -43,27 +149,17 @@ export async function POST(req: NextRequest) {
           cache_control: { type: "ephemeral" },
         },
       ],
-      messages: [
-        ...history,
-        // Prefill an open brace to force raw-JSON output.
-        { role: "assistant", content: "{" },
-      ],
+      tools: [RESPONSE_TOOL],
+      tool_choice: { type: "tool", name: TOOL_NAME },
+      messages: history,
     });
 
-    const block = completion.content[0];
-    const text = block && block.type === "text" ? block.text : "";
-    const raw = "{" + text; // re-attach the prefilled brace
-
-    let parsed: ChatResponse;
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
-      // Last-ditch: extract the outermost JSON object.
-      const match = raw.match(/\{[\s\S]*\}/);
-      if (!match) throw new Error("malformed JSON from model");
-      parsed = JSON.parse(match[0]);
+    const toolUse = completion.content.find((b) => b.type === "tool_use");
+    if (!toolUse || toolUse.type !== "tool_use") {
+      throw new Error("model did not return the response tool");
     }
 
+    const parsed = toolUse.input as ChatResponse;
     if (
       !parsed ||
       !["structured", "out_of_scope", "greeting"].includes(parsed.type)
