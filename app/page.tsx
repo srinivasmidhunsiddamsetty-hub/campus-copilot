@@ -1,65 +1,238 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { ChatResponse, ChatMessage } from "@/lib/types";
+import { QUICK_CHIPS } from "@/lib/categories";
+import Sidebar from "@/components/Sidebar";
+import InputBar from "@/components/InputBar";
+import AIResponse from "@/components/AIResponse";
+import { PanelLeftIcon, SunIcon, MoonIcon, CapIcon } from "@/components/icons";
+
+type Msg =
+  | { kind: "user"; text: string }
+  | { kind: "ai"; response: ChatResponse }
+  | { kind: "error"; text: string };
+
+function toApiMessages(msgs: Msg[]): ChatMessage[] {
+  const out: ChatMessage[] = [];
+  for (const m of msgs) {
+    if (m.kind === "user") out.push({ role: "user", content: m.text });
+    else if (m.kind === "ai")
+      out.push({ role: "assistant", content: JSON.stringify(m.response) });
+  }
+  return out;
+}
+
+export default function Page() {
+  const [dark, setDark] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [isMobile, setIsMobile] = useState(false);
+  const [started, setStarted] = useState(false);
+  const [messages, setMessages] = useState<Msg[]>([]);
+  const [typing, setTyping] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Init theme + responsive state after mount.
+  useEffect(() => {
+    setDark(document.documentElement.classList.contains("dark"));
+    const mql = window.matchMedia("(max-width: 680px)");
+    const apply = () => {
+      setIsMobile(mql.matches);
+      if (mql.matches) setSidebarOpen(false);
+    };
+    apply();
+    mql.addEventListener("change", apply);
+    return () => mql.removeEventListener("change", apply);
+  }, []);
+
+  // Keep scrolled to the latest message.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+  }, [messages, typing]);
+
+  function toggleTheme() {
+    const next = !dark;
+    setDark(next);
+    document.documentElement.classList.toggle("dark", next);
+    try {
+      localStorage.setItem("theme", next ? "dark" : "light");
+    } catch {}
+  }
+
+  function toggleSidebar() {
+    setSidebarOpen((o) => !o);
+  }
+
+  function newChat() {
+    setStarted(false);
+    setMessages([]);
+    setTyping(false);
+  }
+
+  const sendMessage = useCallback(
+    async (text: string) => {
+      setStarted(true);
+      if (isMobile) setSidebarOpen(false);
+
+      let history: ChatMessage[] = [];
+      setMessages((prev) => {
+        const next: Msg[] = [...prev, { kind: "user", text }];
+        history = toApiMessages(next);
+        return next;
+      });
+      setTyping(true);
+
+      try {
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ messages: history }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.error || "request failed");
+        setMessages((prev) => [
+          ...prev,
+          { kind: "ai", response: data as ChatResponse },
+        ]);
+      } catch {
+        setMessages((prev) => [
+          ...prev,
+          {
+            kind: "error",
+            text: "Something went wrong connecting to Campus Copilot. Please try again.",
+          },
+        ]);
+      } finally {
+        setTyping(false);
+      }
+    },
+    [isMobile]
+  );
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+    <>
+      <Sidebar open={sidebarOpen} onToggle={toggleSidebar} onNewChat={newChat} />
+
+      {/* Mobile slide-over backdrop */}
+      <div
+        id="sb-overlay"
+        className={sidebarOpen && isMobile ? "show" : undefined}
+        onClick={toggleSidebar}
+      />
+
+      {/* Floating open button (when sidebar hidden) */}
+      <button
+        id="open-btn"
+        className={!sidebarOpen ? "show" : undefined}
+        onClick={toggleSidebar}
+        title="Open sidebar"
+      >
+        <PanelLeftIcon />
+      </button>
+
+      <main id="main" className={!sidebarOpen ? "expand" : undefined}>
+        <nav id="topnav">
+          <div className="nav-sp" />
+          <button className="th-btn" onClick={toggleTheme} title="Toggle theme">
+            {dark ? <SunIcon /> : <MoonIcon />}
+          </button>
+        </nav>
+
+        {/* Welcome stage */}
+        <div id="center" className={started ? "gone" : undefined}>
+          <div className="app-icon">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/lion.png" alt="Campus Copilot" />
+          </div>
+          <h1 className="page-title">Campus Copilot</h1>
+          <p className="page-sub">
+            Your AI-powered guide to everything at Penn State
           </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+          <div className="c-wrap">
+            <InputBar
+              placeholder="How can I help you on campus?"
+              onSend={sendMessage}
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+          </div>
+          <div className="qchips">
+            {QUICK_CHIPS.map((c) => (
+              <div
+                className="qchip"
+                key={c.label}
+                onClick={() => sendMessage(c.query)}
+              >
+                {c.label}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Chat stage */}
+        <div id="chat-area" className={started ? "on" : undefined}>
+          <div id="chat-scroll" className="scroll-thin" ref={scrollRef}>
+            <div id="messages">
+              {messages.map((m, i) => {
+                if (m.kind === "user") {
+                  return (
+                    <div className="mrow u" key={i}>
+                      <div className="bub bub-u">{m.text}</div>
+                    </div>
+                  );
+                }
+                if (m.kind === "error") {
+                  return (
+                    <div className="aib" key={i}>
+                      <div className="ai-intro">{m.text}</div>
+                    </div>
+                  );
+                }
+                return (
+                  <AIResponse
+                    key={i}
+                    response={m.response}
+                    onChip={sendMessage}
+                  />
+                );
+              })}
+
+              {typing && (
+                <div className="mrow">
+                  <div className="av av-ai">
+                    <CapIcon width={18} height={18} />
+                  </div>
+                  <div className="typind">
+                    <div className="td" />
+                    <div className="td" />
+                    <div className="td" />
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div id="bot-bar">
+            <div className="bot-wrap">
+              <InputBar
+                placeholder="Message Campus Copilot..."
+                plain
+                autoFocus={started}
+                onSend={sendMessage}
+              />
+            </div>
+          </div>
         </div>
       </main>
-    </div>
+
+      {/* Mobile welcome bottom bar */}
+      {!started && (
+        <div id="mobile-bar">
+          <InputBar
+            placeholder="How can I help you on campus?"
+            onSend={sendMessage}
+          />
+        </div>
+      )}
+    </>
   );
 }
