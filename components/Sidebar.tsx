@@ -1,15 +1,17 @@
 import { PanelLeftIcon, ComposeIcon, ProfileIcon } from "@/components/icons";
 
-const RECENT = ["Late-Night Food Options", "Health Center Appointment"];
-
 export default function Sidebar({
   open,
   onToggle,
   onNewChat,
+  recents,
+  activeId,
 }: {
   open: boolean;
   onToggle: () => void;
   onNewChat: () => void;
+  recents: { id: string; title: string }[];
+  activeId: string | null;
 }) {
   return (
     <aside id="sidebar" className={open ? undefined : "hidden"}>
@@ -38,9 +40,12 @@ export default function Sidebar({
       <div className="sb-lbl">Recent</div>
 
       <div className="sb-hist scroll-sb">
-        {RECENT.map((t, i) => (
-          <div className="sb-item" key={i}>
-            {t}
+        {recents.map((r) => (
+          <div
+            className={`sb-item${r.id === activeId ? " active" : ""}`}
+            key={r.id}
+          >
+            {r.title}
           </div>
         ))}
       </div>

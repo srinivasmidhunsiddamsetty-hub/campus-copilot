@@ -30,6 +30,11 @@ export default function Page() {
   const [started, setStarted] = useState(false);
   const [messages, setMessages] = useState<Msg[]>([]);
   const [typing, setTyping] = useState(false);
+  const [recents, setRecents] = useState<{ id: string; title: string }[]>([
+    { id: "seed-1", title: "Late-Night Food Options" },
+    { id: "seed-2", title: "Health Center Appointment" },
+  ]);
+  const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Init theme + responsive state after mount.
@@ -68,12 +73,24 @@ export default function Page() {
     setStarted(false);
     setMessages([]);
     setTyping(false);
+    setActiveChatId(null);
   }
 
   const sendMessage = useCallback(
     async (text: string) => {
       setStarted(true);
       if (isMobile) setSidebarOpen(false);
+
+      // First message of a chat → add it to Recent (titled by the message) and mark it active.
+      if (messages.length === 0) {
+        const id =
+          typeof crypto !== "undefined" && crypto.randomUUID
+            ? crypto.randomUUID()
+            : String(Date.now());
+        const title = text.length > 48 ? text.slice(0, 48).trimEnd() + "…" : text;
+        setRecents((prev) => [{ id, title }, ...prev]);
+        setActiveChatId(id);
+      }
 
       const userMsg: Msg = { kind: "user", text };
       const history = toApiMessages([...messages, userMsg]);
@@ -109,7 +126,13 @@ export default function Page() {
 
   return (
     <>
-      <Sidebar open={sidebarOpen} onToggle={toggleSidebar} onNewChat={newChat} />
+      <Sidebar
+        open={sidebarOpen}
+        onToggle={toggleSidebar}
+        onNewChat={newChat}
+        recents={recents}
+        activeId={activeChatId}
+      />
 
       {/* Mobile slide-over backdrop */}
       <div
