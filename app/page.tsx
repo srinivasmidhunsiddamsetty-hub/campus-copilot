@@ -211,7 +211,7 @@ export default function Page() {
           <div id="bot-bar">
             <div className="bot-wrap">
               <InputBar
-                placeholder="Message Campus Copilot..."
+                placeholder="Ask anything about Penn State…"
                 plain
                 autoFocus={started}
                 onSend={sendMessage}

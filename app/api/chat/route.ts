@@ -7,6 +7,39 @@ const MODEL = "claude-haiku-4-5-20251001";
 const MAX_HISTORY = 20;
 const TOOL_NAME = "campus_response";
 
+// Hosts we know resolve. Any CTA link is normalized to one of these origins
+// (or a tel: link) so users never hit a broken/404 link.
+const KNOWN_PSU_HOSTS = new Set([
+  "psu.edu",
+  "www.psu.edu",
+  "dining.psu.edu",
+  "housing.psu.edu",
+  "myhousing.psu.edu",
+  "studentaffairs.psu.edu",
+  "transportation.psu.edu",
+  "campusrec.psu.edu",
+  "map.psu.edu",
+  "libraries.psu.edu",
+  "pennstatelearning.psu.edu",
+]);
+
+// Guarantee a CTA link is safe: keep tel: links; map known PSU hosts to their
+// origin (dropping invented deep paths that could 404); otherwise fall back to
+// the response's source domain.
+function safeHref(href: string | undefined, sourceUrl: string): string {
+  let fallback = "https://www.psu.edu";
+  try {
+    fallback = new URL(sourceUrl).origin;
+  } catch {}
+  if (!href) return fallback;
+  if (href.startsWith("tel:")) return href;
+  try {
+    const u = new URL(href);
+    if (KNOWN_PSU_HOSTS.has(u.hostname.toLowerCase())) return u.origin;
+  } catch {}
+  return fallback;
+}
+
 // Forcing this tool guarantees Claude returns a valid, parsed object
 // (no hand-written JSON to break on embedded quotes, etc.).
 const RESPONSE_TOOL: Anthropic.Tool = {
@@ -54,10 +87,13 @@ const RESPONSE_TOOL: Anthropic.Tool = {
               items: {
                 type: "object",
                 properties: {
-                  label: { type: "string" },
+                  label: {
+                    type: "string",
+                    description: "Bold prefix, e.g. 'Phone', 'Response time'. Required.",
+                  },
                   text: { type: "string" },
                 },
-                required: ["text"],
+                required: ["label", "text"],
               },
             },
             steps: {
@@ -195,6 +231,16 @@ export async function POST(req: NextRequest) {
       !["structured", "out_of_scope", "greeting"].includes(parsed.type)
     ) {
       throw new Error("unexpected response type");
+    }
+
+    // Normalize every CTA link so users never hit a broken URL.
+    if (parsed.type === "structured") {
+      const sourceUrl = parsed.source?.url ?? "https://www.psu.edu";
+      for (const card of parsed.cards ?? []) {
+        for (const cta of card.ctas ?? []) {
+          cta.href = safeHref(cta.href, sourceUrl);
+        }
+      }
     }
 
     return NextResponse.json(parsed);

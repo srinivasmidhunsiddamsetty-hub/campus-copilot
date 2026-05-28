@@ -21,10 +21,16 @@ export default function Sidebar({
   return (
     <aside id="sidebar" className={open ? undefined : "hidden"}>
       <div className="sb-head">
-        <div className="sb-logo">
+        <button
+          className="sb-logo"
+          onClick={onNewChat}
+          title="New chat"
+          aria-label="New chat"
+          type="button"
+        >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/lion.png" alt="Penn State Nittany Lion" />
-        </div>
+        </button>
         <button className="sb-tog" onClick={onToggle} title="Close sidebar">
           <PanelLeftIcon />
         </button>
