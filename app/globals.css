@@ -1128,9 +1128,8 @@ body {
   margin-bottom: 20px;
 }
 .qchips {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
   gap: 8px;
   width: 100%;
   max-width: 660px;
