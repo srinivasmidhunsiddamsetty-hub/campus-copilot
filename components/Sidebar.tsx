@@ -1,13 +1,6 @@
 import { PanelLeftIcon, ComposeIcon, ProfileIcon } from "@/components/icons";
 
-const RECENT = [
-  "Late-Night Food Options",
-  "Finals Week Study Spots",
-  "Health Center Appointment",
-  "Parking & Transportation",
-  "Academic Advisor Meeting",
-  "Dorm Maintenance Request",
-];
+const RECENT = ["Late-Night Food Options", "Health Center Appointment"];
 
 export default function Sidebar({
   open,
