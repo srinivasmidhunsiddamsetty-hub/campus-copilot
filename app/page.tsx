@@ -75,12 +75,9 @@ export default function Page() {
       setStarted(true);
       if (isMobile) setSidebarOpen(false);
 
-      let history: ChatMessage[] = [];
-      setMessages((prev) => {
-        const next: Msg[] = [...prev, { kind: "user", text }];
-        history = toApiMessages(next);
-        return next;
-      });
+      const userMsg: Msg = { kind: "user", text };
+      const history = toApiMessages([...messages, userMsg]);
+      setMessages((prev) => [...prev, userMsg]);
       setTyping(true);
 
       try {
@@ -107,7 +104,7 @@ export default function Page() {
         setTyping(false);
       }
     },
-    [isMobile]
+    [isMobile, messages]
   );
 
   return (
