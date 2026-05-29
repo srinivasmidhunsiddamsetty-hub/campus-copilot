@@ -308,6 +308,24 @@ body {
     color: #d0e4f8;
   }
 
+  /* Inline links inside AI prose (out-of-scope / greeting / intro) */
+  .inline-link {
+    color: #2a5ca8;
+    font-weight: 500;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    transition: color 0.18s;
+  }
+  .inline-link:hover {
+    color: var(--navy);
+  }
+  .dark .inline-link {
+    color: #7ab8e8;
+  }
+  .dark .inline-link:hover {
+    color: #a0c8ee;
+  }
+
   /* ── Info cards ── */
   .icards {
     display: flex;

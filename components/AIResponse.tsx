@@ -1,5 +1,6 @@
 import type { ChatResponse } from "@/lib/types";
 import InfoCardView from "@/components/InfoCardView";
+import { linkify } from "@/components/linkify";
 
 export default function AIResponse({
   response,
@@ -11,7 +12,7 @@ export default function AIResponse({
   if (response.type === "greeting") {
     return (
       <div className="aib">
-        <div className="ai-intro">{response.message}</div>
+        <div className="ai-intro">{linkify(response.message)}</div>
         <div className="chips">
           {response.chips.map((c, i) => (
             <button className="chip" type="button" key={i} onClick={() => onChip(c)}>
@@ -26,7 +27,7 @@ export default function AIResponse({
   if (response.type === "out_of_scope") {
     return (
       <div className="aib">
-        <div className="ai-intro">{response.message}</div>
+        <div className="ai-intro">{linkify(response.message)}</div>
       </div>
     );
   }
@@ -34,7 +35,7 @@ export default function AIResponse({
   // structured
   return (
     <div className="aib">
-      <div className="ai-intro">{response.intro}</div>
+      <div className="ai-intro">{linkify(response.intro)}</div>
 
       <div className="icards">
         {response.cards.slice(0, 2).map((card, i) => (
